@@ -164,6 +164,7 @@ class TaskConfig(BaseModel):
     api: APIConfig
     params: dict[str, ParamValue]           # 请求参数定义
     combination: Literal["product", "zip", "random"] = "product"
+    repeat: int = 1                         # 同一组参数重复执行次数
     output: OutputConfig = Field(default_factory=OutputConfig)
     result_log: str = "outputs/{timestamp}/results.jsonl"
 

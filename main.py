@@ -41,12 +41,19 @@ def _dry_run(config_path: Path) -> None:
 
     tasks = build_task_list(config.params, config.combination, base_dir=config_dir)
 
+    # 计算含重复在内的总任务数
+    repeat = config.repeat
+    total = len(tasks) * repeat
+
     print(f"\n{'='*60}")
     print(f"  配置文件: {config_path}")
     print(f"  API 地址: {config.api.base_url}")
     print(f"  组合策略: {config.combination}")
     print(f"  并发数量: {config.api.concurrency}")
-    print(f"  任务总数: {len(tasks)}")
+    print(f"  参数组数: {len(tasks)}")
+    if repeat > 1:
+        print(f"  每组重复: {repeat} 次")
+    print(f"  任务总数: {total}")
     print(f"{'='*60}\n")
 
     # 展示前 10 个任务的参数摘要

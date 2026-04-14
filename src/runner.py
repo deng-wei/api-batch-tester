@@ -89,16 +89,27 @@ class BatchRunner:
             logger.warning("任务列表为空，无需执行")
             return {"success": 0, "failed": 0, "skipped": 0}
 
+        # ---- 步骤 1.5: 根据 repeat 扩展任务列表 ----
+        repeat = self._config.repeat
+        if repeat > 1:
+            logger.info(f"每组参数重复执行 {repeat} 次")
+        expanded_tasks = self._expand_with_repeat(tasks, repeat)
+        logger.info(f"含重复在内共 {len(expanded_tasks)} 个任务")
+
         # ---- 步骤 2: 初始化结果追踪器，过滤已完成任务 ----
         tracker = ResultTracker(self._log_path)
 
         # 为每个任务计算 ID 并过滤
         task_items: list[tuple[str, dict[str, Any]]] = []
         skipped = 0
-        for params in tasks:
+        for params in expanded_tasks:
             # 过滤掉元数据后计算 ID，确保 ID 仅由 API 参数决定
             api_params = {k: v for k, v in params.items() if not k.startswith("_meta_")}
             task_id = generate_task_id(api_params)
+            # repeat 模式下用 run_index 来区分同组参数的不同轮次
+            run_index = params.get("_meta_run_index", 0)
+            if run_index > 0:
+                task_id = f"{task_id}_run{run_index}"
             
             if tracker.is_completed(task_id):
                 skipped += 1
@@ -142,6 +153,35 @@ class BatchRunner:
             f"跳过: {summary['skipped']}"
         )
         return summary
+
+    @staticmethod
+    def _expand_with_repeat(
+        tasks: list[dict[str, Any]],
+        repeat: int,
+    ) -> list[dict[str, Any]]:
+        """
+        根据 repeat 次数扩展任务列表。
+
+        当 repeat > 1 时，为每个任务生成 repeat 份副本，
+        并注入 _meta_run_index 元数据（1-based），用于文件命名和断点续跑。
+
+        Args:
+            tasks: 原始任务列表
+            repeat: 重复次数
+
+        Returns:
+            扩展后的任务列表
+        """
+        if repeat <= 1:
+            return tasks
+
+        expanded: list[dict[str, Any]] = []
+        for params in tasks:
+            for run_idx in range(1, repeat + 1):
+                copy = dict(params)
+                copy["_meta_run_index"] = run_idx
+                expanded.append(copy)
+        return expanded
 
     async def _get_unique_path(self, base_name: str, suffix: str) -> Path:
         """获取唯一的文件路径，避免冲突。"""
@@ -225,6 +265,11 @@ class BatchRunner:
                 else:
                     base_name = f"{task_id}_{i}"
                     suffix = rule.suffix
+
+                # 如果有 run_index（repeat 模式），在文件名后追加序号
+                run_index = params.get("_meta_run_index", 0)
+                if run_index > 0:
+                    base_name = f"{base_name}_run{run_index}"
 
                 # 获取唯一路径（处理重名）
                 file_path = await self._get_unique_path(base_name, suffix)

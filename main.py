@@ -27,6 +27,9 @@ def _setup_logging() -> None:
         format="%(asctime)s [%(levelname)s] %(message)s",
         datefmt="%H:%M:%S",
     )
+    # 禁用来自 httpx 和 httpcore 的详细请求日志，以免干扰 tqdm 进度条
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 
 def _dry_run(config_path: Path) -> None:

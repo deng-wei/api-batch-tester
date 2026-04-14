@@ -41,6 +41,9 @@ params:
 # 非 pick 参数（image）正常展开
 combination: "random"
 
+# 每组参数重复执行次数（结果文件名自动追加 _run1, _run2, ...）
+repeat: 4
+
 output:
   dir: "/mnt/data/Project/qwen-image/批量测试/output/{timestamp}"
   save_response: true

@@ -9,9 +9,10 @@
 # --- API 连接配置 ---
 api:
   # API 端点地址（完整 URL）
-  base_url: "https://ark.cn-beijing.volces.com/api/v3/images/generations"
-  # API Key，支持 ${ENV_VAR} 引用环境变量
-  api_key: "${API_KEY}"
+  # API 端点地址，支持 ${ENV_VAR} 引用环境变量
+  base_url: "${VOLCENGINE_BASE_URL}/images/generations"
+  # API Key，支持 ${ENV_VAR} 引用环境变量（在 .env 文件中配置）
+  api_key: "${VOLCENGINE_KEY}"
   method: "POST"
   timeout: 300          # 单次请求超时（秒）
   max_retries: 3        # 最大重试次数

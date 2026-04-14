@@ -28,11 +28,36 @@ uv sync
 cp configs/example.yaml configs/my_task.yaml
 ```
 
-### 2. 设置环境变量
+### 2. 配置 API Key
+
+复制 `.env.example` 为 `.env` 并填入实际的 Key：
 
 ```bash
-export API_KEY="your-api-key-here"
+cp .env.example .env
+# 编辑 .env，填入你的 API Key 和 Base URL
 ```
+
+`.env` 文件示例（支持配置多个 API 提供商）：
+
+```env
+# DeerAPI
+DEERAPI_KEY=sk-your-deerapi-key
+DEERAPI_BASE_URL=https://api.deerapi.com/v1
+
+# 火山引擎
+VOLCENGINE_KEY=your-volcengine-key
+VOLCENGINE_BASE_URL=https://ark.cn-beijing.volces.com/api/v3
+```
+
+在 YAML 配置中通过 `${变量名}` 引用：
+
+```yaml
+api:
+  base_url: "${DEERAPI_BASE_URL}/images/generations"
+  api_key: "${DEERAPI_KEY}"
+```
+
+> **注意**：`.env` 文件已被 `.gitignore` 忽略，不会提交到版本库。系统环境变量优先于 `.env` 文件。
 
 ### 3. 预览任务
 
@@ -86,6 +111,7 @@ uv run python main.py configs/my_task.yaml
 ```
 api-batch-tester/
 ├── main.py                  # CLI 入口
+├── .env.example             # 环境变量模板（API Key 配置）
 ├── configs/                 # 配置文件目录
 │   ├── example.yaml         # 完整示例
 │   └── example_random_prompt.yaml  # 随机提示词示例

@@ -4,8 +4,8 @@
 # 场景：每张输入图片随机从 3 个提示词中选一个
 
 api:
-  base_url: "https://ark.cn-beijing.volces.com/api/v3/images/generations"
-  api_key: "${API_KEY}"
+  base_url: "${VOLCENGINE_BASE_URL}/images/generations"
+  api_key: "${VOLCENGINE_KEY}"
   timeout: 300
   max_retries: 3
   concurrency: 3

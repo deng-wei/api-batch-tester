@@ -6,18 +6,59 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import re
 from pathlib import Path
 from typing import Any, Literal
 
 import yaml
+from dotenv import load_dotenv
 from pydantic import BaseModel, Field, model_validator
+
+logger = logging.getLogger(__name__)
 
 
 # ============================================================
 # 辅助函数
 # ============================================================
+
+def _load_env_file(config_path: Path) -> None:
+    """
+    加载 .env 文件中的环境变量。
+
+    查找优先级：
+      1. 配置文件所在目录的 .env
+      2. 项目根目录（向上查找包含 pyproject.toml 的目录）的 .env
+      3. dotenv 默认行为（从 cwd 向上查找）
+
+    注意：override=False 保证已设置的系统环境变量不会被 .env 覆盖。
+    """
+    # 策略 1：配置文件同级 .env
+    config_dir_env = config_path.parent / ".env"
+    if config_dir_env.is_file():
+        load_dotenv(config_dir_env, override=False)
+        logger.info("已加载 .env 文件: %s", config_dir_env)
+        return
+
+    # 策略 2：向上查找项目根目录（含 pyproject.toml）的 .env
+    current = config_path.parent.resolve()
+    for parent in [current, *current.parents]:
+        if (parent / "pyproject.toml").is_file():
+            project_env = parent / ".env"
+            if project_env.is_file():
+                load_dotenv(project_env, override=False)
+                logger.info("已加载 .env 文件: %s", project_env)
+                return
+            break  # 找到项目根但没有 .env，跳出
+
+    # 策略 3：回退到 dotenv 默认查找
+    found = load_dotenv(override=False)
+    if found:
+        logger.info("已通过 dotenv 默认查找加载 .env 文件")
+    else:
+        logger.debug("未找到 .env 文件，将仅使用系统环境变量")
+
 
 def _resolve_env_vars(text: str) -> str:
     """解析字符串中的 ${ENV_VAR} 引用，替换为环境变量值。"""
@@ -158,6 +199,9 @@ def load_config(config_path: str | Path) -> TaskConfig:
     config_path = Path(config_path)
     if not config_path.exists():
         raise FileNotFoundError(f"配置文件不存在: {config_path}")
+
+    # 在解析配置前加载 .env 文件，确保环境变量可用
+    _load_env_file(config_path)
 
     with open(config_path, "r", encoding="utf-8") as f:
         raw = yaml.safe_load(f)

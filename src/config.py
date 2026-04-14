@@ -107,7 +107,8 @@ class OutputExtractRule(BaseModel):
     """从 API 响应中提取输出文件的规则。"""
     field: str                              # JSON 字段路径，如 "data[0].b64_json"
     type: Literal["base64_image", "base64_video", "url"]  # 数据类型
-    suffix: str = ".png"                    # 保存文件的后缀名
+    suffix: str = ".png"                    # 保存文件的后缀名 (仅在 filename 未指定时使用)
+    filename: str | None = None             # 自定义文件名模板，支持 {param_name} 占位符
 
 
 class OutputConfig(BaseModel):

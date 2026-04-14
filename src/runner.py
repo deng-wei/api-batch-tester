@@ -64,6 +64,10 @@ class BatchRunner:
         self._log_path = Path(
             resolve_timestamp_template(config.result_log)
         )
+        
+        # 用于处理同名文件冲突的计数器和锁
+        self._filename_counts: dict[str, int] = {}
+        self._lock = asyncio.Lock()
 
     async def run(self) -> dict[str, int]:
         """
@@ -92,7 +96,10 @@ class BatchRunner:
         task_items: list[tuple[str, dict[str, Any]]] = []
         skipped = 0
         for params in tasks:
-            task_id = generate_task_id(params)
+            # 过滤掉元数据后计算 ID，确保 ID 仅由 API 参数决定
+            api_params = {k: v for k, v in params.items() if not k.startswith("_meta_")}
+            task_id = generate_task_id(api_params)
+            
             if tracker.is_completed(task_id):
                 skipped += 1
                 tracker.record(task_id, "skipped")
@@ -136,6 +143,18 @@ class BatchRunner:
         )
         return summary
 
+    async def _get_unique_path(self, base_name: str, suffix: str) -> Path:
+        """获取唯一的文件路径，避免冲突。"""
+        async with self._lock:
+            full_name = f"{base_name}{suffix}"
+            if full_name not in self._filename_counts:
+                self._filename_counts[full_name] = 0
+                return self._output_dir / full_name
+            
+            self._filename_counts[full_name] += 1
+            count = self._filename_counts[full_name]
+            return self._output_dir / f"{base_name}_{count}{suffix}"
+
     async def _execute_task(
         self,
         client: APIClient,
@@ -150,12 +169,24 @@ class BatchRunner:
             client: HTTP 客户端
             tracker: 结果追踪器
             task_id: 任务 ID
-            params: 请求参数
+            params: 请求参数（包含元数据）
         """
+        # 分离 API 参数和元数据
+        api_payload = {k: v for k, v in params.items() if not k.startswith("_meta_")}
+        
+        # 提取文件名元数据供模板使用
+        # _meta_image_filename -> {"image_name": "xxx"}
+        meta_context = {}
+        for k, v in params.items():
+            if k.startswith("_meta_") and k.endswith("_filename"):
+                # 提取参数名
+                param_name = k[6:-9]
+                meta_context[f"{param_name}_name"] = v
+
         start_time = time.monotonic()
         try:
             # 发送请求
-            response = await client.send(params)
+            response = await client.send(api_payload)
             elapsed = time.monotonic() - start_time
 
             # 保存完整响应 JSON（可选）
@@ -178,8 +209,25 @@ class BatchRunner:
                     )
                     continue
 
-                suffix = rule.suffix
-                file_path = self._output_dir / f"{task_id}_{i}{suffix}"
+                # 确定文件名
+                if rule.filename:
+                    # 解析模板，例如 "{image_name}.png"
+                    try:
+                        # 分离基准名和后缀（用于自动编号）
+                        target_name = rule.filename.format(**meta_context)
+                        p_name = Path(target_name)
+                        base_name = p_name.stem
+                        suffix = p_name.suffix or rule.suffix
+                    except KeyError as e:
+                        logger.warning(f"文件名模板解析失败，缺少元数据 {e}，将回退到默认命名")
+                        base_name = f"{task_id}_{i}"
+                        suffix = rule.suffix
+                else:
+                    base_name = f"{task_id}_{i}"
+                    suffix = rule.suffix
+
+                # 获取唯一路径（处理重名）
+                file_path = await self._get_unique_path(base_name, suffix)
 
                 if rule.type == "base64_image" or rule.type == "base64_video":
                     save_base64_file(value, file_path)
@@ -194,7 +242,7 @@ class BatchRunner:
             tracker.record(
                 task_id,
                 "success",
-                params=params,
+                params=api_payload,
                 output_files=output_files,
                 elapsed=elapsed,
             )
@@ -205,7 +253,7 @@ class BatchRunner:
             tracker.record(
                 task_id,
                 "failed",
-                params=params,
+                params=api_payload,
                 elapsed=elapsed,
                 error=str(e),
             )

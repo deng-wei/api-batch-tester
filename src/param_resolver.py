@@ -43,16 +43,11 @@ def _is_video(path: Path) -> bool:
 def resolve_param_value(
     param: ParamValue,
     base_dir: Path | None = None,
-) -> list[Any]:
+) -> list[Any | tuple[Any, dict[str, Any]]]:
     """
     解析单个参数定义，返回所有可能的值列表。
 
-    Args:
-        param: 参数定义对象
-        base_dir: 相对路径的基准目录（通常为配置文件所在目录）
-
-    Returns:
-        值列表。对于固定值返回单元素列表 [value]
+    对于带有文件信息的参数（如 glob），会返回 (value, metadata) 元组列表。
     """
     base_dir = base_dir or Path(".")
 
@@ -76,26 +71,27 @@ def resolve_param_value(
         if not matched:
             raise FileNotFoundError(f"glob 模式 '{pattern}' 未匹配到任何文件")
 
-        # 根据 as_format 转换
-        if param.as_format == "base64":
-            values = []
-            for p in matched:
+        results = []
+        for p in matched:
+            # 基础元数据：文件名（不含后缀）
+            meta = {"filename": p.stem}
+            
+            val: Any = None
+            if param.as_format == "base64":
                 if _is_image(p):
-                    values.append(image_to_base64(p, with_prefix=True))
+                    val = image_to_base64(p, with_prefix=True)
                 elif _is_video(p):
-                    values.append(video_to_base64(p, with_prefix=True))
+                    val = video_to_base64(p, with_prefix=True)
                 else:
-                    # 其他文件类型直接 base64 编码
                     import base64 as b64mod
-                    raw = p.read_bytes()
-                    values.append(b64mod.b64encode(raw).decode("utf-8"))
-            return values
-        elif param.as_format == "path":
-            return [str(p.resolve()) for p in matched]
-        elif param.as_format == "filename":
-            return [p.name for p in matched]
-        else:
-            raise ValueError(f"不支持的 as_format: {param.as_format}")
+                    val = b64mod.b64encode(p.read_bytes()).decode("utf-8")
+            elif param.as_format == "path":
+                val = str(p.resolve())
+            elif param.as_format == "filename":
+                val = p.name
+            
+            results.append((val, meta))
+        return results
 
     # --- 模式 4: 文件内容读取 ---
     if param.file is not None:
@@ -130,89 +126,92 @@ def build_task_list(
     """
     根据参数定义和组合策略生成任务列表。
 
-    每个任务是一个字典，key 为参数名，value 为该任务的具体参数值。
-
-    Args:
-        params: 参数名 → ParamValue 定义的映射
-        combination: 组合策略 ("product" / "zip" / "random")
-        base_dir: 相对路径基准目录
-
-    Returns:
-        任务参数字典列表
+    返回的任务字典中，API 所需参数正常存储，
+    元数据（如文件名）存储在以 `_meta_` 开头的键中。
     """
     # 步骤 1: 解析所有参数的值列表
     resolved: dict[str, list[Any]] = {}
     for name, param in params.items():
         resolved[name] = resolve_param_value(param, base_dir)
 
-    # 区分单值参数（固定参数）和多值参数（需要组合的参数）
+    # 步骤 2: 规范化数据形式（分离 value 和 meta）
+    values_only: dict[str, list[Any]] = {}
+    metadata_map: dict[str, list[dict[str, Any] | None]] = {}
+
+    for name, items in resolved.items():
+        v_list = []
+        m_list = []
+        for item in items:
+            if isinstance(item, tuple) and len(item) == 2:
+                v_list.append(item[0])
+                m_list.append(item[1])
+            else:
+                v_list.append(item)
+                m_list.append(None)
+        values_only[name] = v_list
+        metadata_map[name] = m_list
+
+    # 区分单值参数和多值参数
     fixed_params: dict[str, Any] = {}
     variable_names: list[str] = []
     variable_values: list[list[Any]] = []
 
-    for name, values in resolved.items():
+    for name, values in values_only.items():
         if len(values) == 1:
             fixed_params[name] = values[0]
+            # 如果固定参数有元数据，也带上
+            if metadata_map[name][0]:
+                for m_k, m_v in metadata_map[name][0].items():
+                    fixed_params[f"_meta_{name}_{m_k}"] = m_v
         else:
             variable_names.append(name)
             variable_values.append(values)
 
-    # 步骤 2: 根据策略进行组合
+    # 辅助函数：根据索引列表构建单个任务字典
+    def _create_task(indices: tuple[int, ...]) -> dict[str, Any]:
+        task = dict(fixed_params)
+        for i, name in enumerate(variable_names):
+            idx = indices[i]
+            val = variable_values[i][idx]
+            task[name] = val
+            # 注入元数据
+            meta = metadata_map[name][idx]
+            if meta:
+                for m_k, m_v in meta.items():
+                    task[f"_meta_{name}_{m_k}"] = m_v
+        return task
+
+    # 步骤 3: 根据策略组合索引
+    tasks = []
     if not variable_names:
-        # 所有参数都是固定值，只有一个任务
         return [dict(fixed_params)]
 
     if combination == "product":
-        # 笛卡尔积
-        combos = list(itertools.product(*variable_values))
+        ranges = [range(len(vals)) for vals in variable_values]
+        for combo_indices in itertools.product(*ranges):
+            tasks.append(_create_task(combo_indices))
+
     elif combination == "zip":
-        # 对齐（按最短列表截断）
-        combos = list(zip(*variable_values))
+        min_len = min(len(vals) for vals in variable_values)
+        for idx in range(min_len):
+            tasks.append(_create_task(tuple([idx] * len(variable_names))))
+
     elif combination == "random":
-        # 找出最大的非 pick 参数列表长度，作为任务数
-        # pick 类型的参数每次随机选一个
-        # 非 pick 类型的参数做笛卡尔积
+        pick_indices = [i for i, name in enumerate(variable_names) if params[name].pick is not None]
+        non_pick_indices = [i for i, name in enumerate(variable_names) if params[name].pick is None]
 
-        pick_names: list[str] = []
-        pick_values: list[list[Any]] = []
-        non_pick_names: list[str] = []
-        non_pick_values: list[list[Any]] = []
-
-        for name, values in zip(variable_names, variable_values):
-            param_def = params[name]
-            if param_def.pick is not None:
-                pick_names.append(name)
-                pick_values.append(values)
-            else:
-                non_pick_names.append(name)
-                non_pick_values.append(values)
-
-        # 非 pick 参数做笛卡尔积
-        if non_pick_values:
-            base_combos = list(itertools.product(*non_pick_values))
+        if not non_pick_indices:
+            tasks.append(_create_task(tuple(random.randrange(len(vals)) for vals in variable_values)))
         else:
-            base_combos = [()]
-
-        tasks = []
-        for combo in base_combos:
-            task = dict(fixed_params)
-            # 填入非 pick 参数
-            for name, val in zip(non_pick_names, combo):
-                task[name] = val
-            # pick 参数随机选一个
-            for name, vals in zip(pick_names, pick_values):
-                task[name] = random.choice(vals)
-            tasks.append(task)
-        return tasks
+            ranges = [range(len(variable_values[i])) for i in non_pick_indices]
+            for non_pick_combo in itertools.product(*ranges):
+                indices = [0] * len(variable_names)
+                for i, val_idx in zip(non_pick_indices, non_pick_combo):
+                    indices[i] = val_idx
+                for i in pick_indices:
+                    indices[i] = random.randrange(len(variable_values[i]))
+                tasks.append(_create_task(tuple(indices)))
     else:
         raise ValueError(f"不支持的组合策略: {combination}")
-
-    # 组装最终任务列表
-    tasks = []
-    for combo in combos:
-        task = dict(fixed_params)
-        for name, val in zip(variable_names, combo):
-            task[name] = val
-        tasks.append(task)
 
     return tasks

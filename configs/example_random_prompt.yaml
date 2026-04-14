@@ -1,0 +1,43 @@
+# ========================================
+# API 批量测试配置文件 — 随机提示词示例
+# ========================================
+# 场景：每张输入图片随机从 3 个提示词中选一个
+
+api:
+  base_url: "https://ark.cn-beijing.volces.com/api/v3/images/generations"
+  api_key: "${API_KEY}"
+  timeout: 300
+  max_retries: 3
+  concurrency: 3
+
+params:
+  model: "doubao-seedream-4.0"
+  size: "2K"
+  response_format: "b64_json"
+
+  # 每次随机选一个提示词
+  prompt:
+    pick:
+      - "高清写实风格，细腻的光影效果"
+      - "日系动漫风格，色彩鲜艳"
+      - "油画风格，厚重的笔触质感"
+
+  # 扫描所有输入图片
+  image:
+    glob: "inputs/images/*.png"
+    as: "base64"
+
+# 关键：使用 random 策略
+# pick 类型参数（prompt）每次随机选一个，
+# 非 pick 参数（image）正常展开
+combination: "random"
+
+output:
+  dir: "outputs/{timestamp}"
+  save_response: true
+  extract:
+    - field: "data[0].b64_json"
+      type: "base64_image"
+      suffix: ".png"
+
+result_log: "outputs/{timestamp}/results.jsonl"

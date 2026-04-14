@@ -1,0 +1,77 @@
+# ========================================
+# API 批量测试配置文件 — 示例
+# ========================================
+# 本文件演示了所有可用的配置选项。
+# 复制此文件并根据实际需求修改后使用：
+#   uv run python main.py configs/my_task.yaml
+#   uv run python main.py configs/my_task.yaml --dry  # 预览模式
+
+# --- API 连接配置 ---
+api:
+  # API 端点地址（完整 URL）
+  base_url: "https://ark.cn-beijing.volces.com/api/v3/images/generations"
+  # API Key，支持 ${ENV_VAR} 引用环境变量
+  api_key: "${API_KEY}"
+  method: "POST"
+  timeout: 300          # 单次请求超时（秒）
+  max_retries: 3        # 最大重试次数
+  retry_backoff: 1.0    # 退避因子（等待时间 = factor × 2^attempt）
+  concurrency: 3        # 最大并发数
+  # 额外请求头（可选）
+  # headers:
+  #   X-Custom-Header: "value"
+
+# --- 输入参数定义 ---
+# 每个 key 都会作为 API 请求 payload 的字段。
+# value 支持以下写法：
+#
+#   ① 固定值（直接写）:
+#      model: "doubao-seedream-4.0"
+#
+#   ② 随机选一 (pick):
+#      prompt:
+#        pick: ["提示词A", "提示词B", "提示词C"]
+#
+#   ③ 文件列表 (glob):
+#      image:
+#        glob: "inputs/images/*.png"
+#        as: "base64"      # 可选: base64 / path / filename
+#
+#   ④ 文件内容 (file):
+#      prompt:
+#        file: "prompts.txt"   # 一行一个值
+#        split: "line"         # 可选: "line" 或自定义分隔符
+
+params:
+  model: "doubao-seedream-4.0"
+  size: "2K"
+  response_format: "b64_json"
+
+  # 示例：从文件读取提示词（一行一个）
+  prompt:
+    file: "prompts.txt"
+    split: "line"
+
+  # 示例：扫描输入图片，自动转为 base64
+  image:
+    glob: "inputs/images/*.png"
+    as: "base64"
+
+# --- 参数组合策略 ---
+# product:  笛卡尔积 — 每个 prompt × 每张 image（全组合）
+# zip:      一一对齐 — prompt[0]+image[0], prompt[1]+image[1]...
+# random:   pick 类型的参数随机选，其他参数做笛卡尔积
+combination: "product"
+
+# --- 输出配置 ---
+output:
+  dir: "outputs/{timestamp}"     # 输出目录，{timestamp} 自动替换为当前时间
+  save_response: true            # 保存完整 API 响应 JSON
+  # 从响应中提取文件的规则
+  extract:
+    - field: "data[0].b64_json"  # JSON 字段路径
+      type: "base64_image"       # 类型: base64_image / base64_video / url
+      suffix: ".png"             # 保存文件后缀
+
+# 结果日志路径
+result_log: "outputs/{timestamp}/results.jsonl"

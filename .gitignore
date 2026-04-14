@@ -1,0 +1,25 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# 环境变量文件
+.env
+.env.*
+
+# 测试输出
+outputs/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+
+external/

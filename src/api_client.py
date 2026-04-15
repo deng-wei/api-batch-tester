@@ -83,8 +83,8 @@ class APIClient:
                 if resp.status_code in self._RETRIABLE_STATUS_CODES:
                     wait_time = self._config.retry_backoff * (2 ** attempt)
                     logger.warning(
-                        f"请求返回 {resp.status_code}，"
-                        f"{wait_time:.1f}s 后重试 ({attempt + 1}/{self._config.max_retries + 1})"
+                        f"Request returned {resp.status_code}, "
+                        f"retrying in {wait_time:.1f}s ({attempt + 1}/{self._config.max_retries + 1})"
                     )
                     last_error = httpx.HTTPStatusError(
                         message=f"HTTP {resp.status_code}",
@@ -104,15 +104,15 @@ class APIClient:
                 # 网络级错误，可重试
                 wait_time = self._config.retry_backoff * (2 ** attempt)
                 logger.warning(
-                    f"网络错误: {e}，"
-                    f"{wait_time:.1f}s 后重试 ({attempt + 1}/{self._config.max_retries + 1})"
+                    f"Network error: {e}, "
+                    f"retrying in {wait_time:.1f}s ({attempt + 1}/{self._config.max_retries + 1})"
                 )
                 last_error = e
                 await asyncio.sleep(wait_time)
                 continue
 
         # 重试次数耗尽
-        raise Exception(f"请求失败（重试 {self._config.max_retries} 次后）: {last_error}")
+        raise Exception(f"Request failed after {self._config.max_retries} retries: {last_error}")
 
     async def close(self) -> None:
         """关闭底层 HTTP 连接。"""

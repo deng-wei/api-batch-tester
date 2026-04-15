@@ -55,10 +55,10 @@ class ResultTracker:
                         self._completed[task_id] = record
                         count += 1
                 except json.JSONDecodeError:
-                    logger.warning(f"日志文件第 {line_num} 行解析失败，已跳过")
+                    logger.warning(f"Failed to parse log line {line_num}, skipped")
 
         if count > 0:
-            logger.info(f"从日志加载了 {count} 条已完成任务记录（支持断点续跑）")
+            logger.info(f"Loaded {count} completed records from log (resume mode supported)")
 
     def is_completed(self, task_id: str) -> bool:
         """

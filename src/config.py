@@ -38,7 +38,7 @@ def _load_env_file(config_path: Path) -> None:
     config_dir_env = config_path.parent / ".env"
     if config_dir_env.is_file():
         load_dotenv(config_dir_env, override=False)
-        logger.info("已加载 .env 文件: %s", config_dir_env)
+        logger.info("Loaded .env file: %s", config_dir_env)
         return
 
     # 策略 2：向上查找项目根目录（含 pyproject.toml）的 .env
@@ -48,16 +48,16 @@ def _load_env_file(config_path: Path) -> None:
             project_env = parent / ".env"
             if project_env.is_file():
                 load_dotenv(project_env, override=False)
-                logger.info("已加载 .env 文件: %s", project_env)
+                logger.info("Loaded .env file: %s", project_env)
                 return
             break  # 找到项目根但没有 .env，跳出
 
     # 策略 3：回退到 dotenv 默认查找
     found = load_dotenv(override=False)
     if found:
-        logger.info("已通过 dotenv 默认查找加载 .env 文件")
+        logger.info("Loaded .env file via default search")
     else:
-        logger.debug("未找到 .env 文件，将仅使用系统环境变量")
+        logger.debug("No .env file found, using system environment variables only")
 
 
 def _resolve_env_vars(text: str) -> str:
@@ -66,7 +66,7 @@ def _resolve_env_vars(text: str) -> str:
         var_name = match.group(1)
         value = os.environ.get(var_name)
         if value is None:
-            raise ValueError(f"环境变量 '{var_name}' 未设置")
+            raise ValueError(f"Environment variable '{var_name}' not set")
         return value
     return re.sub(r"\$\{(\w+)}", _replacer, text)
 
@@ -139,7 +139,7 @@ class ParamValue(BaseModel):
         ]
         if sum(modes) != 1:
             raise ValueError(
-                "参数定义必须且只能指定 value / pick / glob / file 中的一种"
+                "Parameter definition must specify exactly one of value / pick / glob / file"
             )
         return self
 
@@ -199,7 +199,7 @@ def load_config(config_path: str | Path) -> TaskConfig:
     """
     config_path = Path(config_path)
     if not config_path.exists():
-        raise FileNotFoundError(f"配置文件不存在: {config_path}")
+        raise FileNotFoundError(f"Config file does not exist: {config_path}")
 
     # 在解析配置前加载 .env 文件，确保环境变量可用
     _load_env_file(config_path)
@@ -208,7 +208,7 @@ def load_config(config_path: str | Path) -> TaskConfig:
         raw = yaml.safe_load(f)
 
     if not isinstance(raw, dict):
-        raise ValueError(f"配置文件格式错误，期望字典结构: {config_path}")
+        raise ValueError(f"Config format error, expected a dictionary: {config_path}")
 
     config = TaskConfig.model_validate(raw)
 

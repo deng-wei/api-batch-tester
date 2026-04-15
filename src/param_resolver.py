@@ -69,7 +69,7 @@ def resolve_param_value(
             matched = sorted(base_dir.glob(pattern))
 
         if not matched:
-            raise FileNotFoundError(f"glob 模式 '{pattern}' 未匹配到任何文件")
+            raise FileNotFoundError(f"Glob pattern '{pattern}' matched no files")
 
         results = []
         for p in matched:
@@ -97,7 +97,7 @@ def resolve_param_value(
     if param.file is not None:
         file_path = base_dir / param.file
         if not file_path.exists():
-            raise FileNotFoundError(f"参数文件不存在: {file_path}")
+            raise FileNotFoundError(f"Parameter file does not exist: {file_path}")
 
         content = file_path.read_text(encoding="utf-8")
 
@@ -111,7 +111,7 @@ def resolve_param_value(
             return parts
 
     # 不应到达此处（Pydantic 校验已保证）
-    raise ValueError("无效的参数定义")
+    raise ValueError("Invalid parameter definition")
 
 
 # ============================================================
@@ -212,6 +212,6 @@ def build_task_list(
                     indices[i] = random.randrange(len(variable_values[i]))
                 tasks.append(_create_task(tuple(indices)))
     else:
-        raise ValueError(f"不支持的组合策略: {combination}")
+        raise ValueError(f"Unsupported combination strategy: {combination}")
 
     return tasks

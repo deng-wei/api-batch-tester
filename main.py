@@ -49,14 +49,14 @@ def _dry_run(config_path: Path) -> None:
     total = len(tasks) * repeat
 
     print(f"\n{'='*60}")
-    print(f"  配置文件: {config_path}")
-    print(f"  API 地址: {config.api.base_url}")
-    print(f"  组合策略: {config.combination}")
-    print(f"  并发数量: {config.api.concurrency}")
-    print(f"  参数组数: {len(tasks)}")
+    print(f"  Config file: {config_path}")
+    print(f"  API Base URL: {config.api.base_url}")
+    print(f"  Combination: {config.combination}")
+    print(f"  Concurrency: {config.api.concurrency}")
+    print(f"  Parameter sets: {len(tasks)}")
     if repeat > 1:
-        print(f"  每组重复: {repeat} 次")
-    print(f"  任务总数: {total}")
+        print(f"  Repeats per set: {repeat}")
+    print(f"  Total tasks: {total}")
     print(f"{'='*60}\n")
 
     # 展示前 10 个任务的参数摘要
@@ -70,7 +70,7 @@ def _dry_run(config_path: Path) -> None:
         print()
 
     if len(tasks) > show_count:
-        print(f"  ... 省略剩余 {len(tasks) - show_count} 个任务\n")
+        print(f"  ... omitting {len(tasks) - show_count} remaining tasks\n")
 
 
 def _truncate_display(value: object, max_len: int = 80) -> str:
@@ -104,23 +104,23 @@ def main() -> None:
     _setup_logging()
 
     parser = argparse.ArgumentParser(
-        description="API 批量测试工具 — 批量测试生图/生视频 API",
+        description="API Batch Tester - Batch test image/video generation APIs",
     )
     parser.add_argument(
         "config",
         type=Path,
-        help="YAML 配置文件路径",
+        help="Path to YAML config file",
     )
     parser.add_argument(
         "--dry",
         action="store_true",
-        help="预览模式：仅展示任务列表，不实际发送请求",
+        help="Dry run mode: preview tasks without sending requests",
     )
 
     args = parser.parse_args()
 
     if not args.config.exists():
-        print(f"错误: 配置文件不存在: {args.config}", file=sys.stderr)
+        print(f"Error: Config file does not exist: {args.config}", file=sys.stderr)
         sys.exit(1)
 
     if args.dry:

@@ -76,25 +76,25 @@ class BatchRunner:
         Returns:
             执行统计摘要字典 {"success": n, "failed": n, "skipped": n}
         """
-        # ---- 步骤 1: 生成任务列表 ----
-        logger.info("正在生成任务列表...")
+        # ---- Step 1: Generate Task List ----
+        logger.info("Generating task list...")
         tasks = build_task_list(
             self._config.params,
             self._config.combination,
             base_dir=self._config_dir,
         )
-        logger.info(f"共生成 {len(tasks)} 个任务")
+        logger.info(f"Total tasks generated: {len(tasks)}")
 
         if not tasks:
-            logger.warning("任务列表为空，无需执行")
+            logger.warning("Task list is empty, nothing to do.")
             return {"success": 0, "failed": 0, "skipped": 0}
 
-        # ---- 步骤 1.5: 根据 repeat 扩展任务列表 ----
+        # ---- Step 1.5: Expand with repeats ----
         repeat = self._config.repeat
         if repeat > 1:
-            logger.info(f"每组参数重复执行 {repeat} 次")
+            logger.info(f"Repeating each parameter set {repeat} times.")
         expanded_tasks = self._expand_with_repeat(tasks, repeat)
-        logger.info(f"含重复在内共 {len(expanded_tasks)} 个任务")
+        logger.info(f"Total tasks (including repeats): {len(expanded_tasks)}")
 
         # ---- 步骤 2: 初始化结果追踪器，过滤已完成任务 ----
         tracker = ResultTracker(self._log_path)
@@ -118,20 +118,20 @@ class BatchRunner:
                 task_items.append((task_id, params))
 
         if skipped > 0:
-            logger.info(f"跳过 {skipped} 个已完成任务（断点续跑）")
+            logger.info(f"Skipped {skipped} completed tasks (resume mode)")
 
         if not task_items:
-            logger.info("所有任务均已完成，无需执行")
+            logger.info("All tasks completed, nothing to do.")
             return tracker.summary()
 
-        logger.info(f"待执行任务: {len(task_items)} 个")
+        logger.info(f"Tasks to execute: {len(task_items)}")
 
         # 创建输出目录
         self._output_dir.mkdir(parents=True, exist_ok=True)
 
-        # ---- 步骤 3: 异步并发执行 ----
+        # ---- Step 3: Async Concurrent Execution ----
         semaphore = asyncio.Semaphore(self._config.api.concurrency)
-        progress = tqdm(total=len(task_items), desc="批量测试", unit="task")
+        progress = tqdm(total=len(task_items), desc="Batch Testing", unit="task")
 
         async with APIClient(self._config.api) as client:
             async def _run_single(task_id: str, params: dict[str, Any]) -> None:
@@ -145,12 +145,12 @@ class BatchRunner:
 
         progress.close()
 
-        # ---- 步骤 4: 打印统计摘要 ----
+        # ---- Step 4: Print Summary ----
         summary = tracker.summary()
         logger.info(
-            f"执行完毕 — 成功: {summary['success']}, "
-            f"失败: {summary['failed']}, "
-            f"跳过: {summary['skipped']}"
+            f"Execution finished - Success: {summary['success']}, "
+            f"Failed: {summary['failed']}, "
+            f"Skipped: {summary['skipped']}"
         )
         return summary
 
@@ -245,7 +245,7 @@ class BatchRunner:
                     value = extract_field(response, rule.field)
                 except (KeyError, IndexError, TypeError) as e:
                     logger.warning(
-                        f"任务 {task_id}: 提取字段 '{rule.field}' 失败: {e}"
+                        f"Task {task_id}: Field extraction failed for '{rule.field}': {e}"
                     )
                     continue
 
@@ -259,7 +259,7 @@ class BatchRunner:
                         base_name = p_name.stem
                         suffix = p_name.suffix or rule.suffix
                     except KeyError as e:
-                        logger.warning(f"文件名模板解析失败，缺少元数据 {e}，将回退到默认命名")
+                        logger.warning(f"Filename template resolution failed, missing metadata {e}, falling back to default naming")
                         base_name = f"{task_id}_{i}"
                         suffix = rule.suffix
                 else:
@@ -281,7 +281,7 @@ class BatchRunner:
                     await download_url(value, file_path, client=client._client)
                     output_files.append(str(file_path))
                 else:
-                    logger.warning(f"未知的提取类型: {rule.type}")
+                    logger.warning(f"Unknown extraction type: {rule.type}")
 
             # 记录成功
             tracker.record(
@@ -294,7 +294,7 @@ class BatchRunner:
 
         except Exception as e:
             elapsed = time.monotonic() - start_time
-            logger.error(f"任务 {task_id} 失败 ({elapsed:.1f}s): {e}")
+            logger.error(f"Task {task_id} failed ({elapsed:.1f}s): {e}")
             tracker.record(
                 task_id,
                 "failed",

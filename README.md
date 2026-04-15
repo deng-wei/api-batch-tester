@@ -1,55 +1,57 @@
-# API 批量测试工具
+# API Batch Tester
 
-批量测试生图/生视频 API 的命令行工具。支持灵活的输入参数组合、异步并发请求、断点续跑。
+English | [简体中文](./README_zh.md)
 
-## 功能特性
+A CLI tool for batch testing Image/Video generation APIs. It supports flexible input parameter combinations, asynchronous concurrent requests, and resume functionality.
 
-- **YAML 配置驱动**：一个 YAML 文件描述完整的测试计划
-- **灵活参数组合**：支持固定值、随机选取、文件扫描、文件内容读取四种参数模式
-- **三种组合策略**：笛卡尔积 (product)、一一对齐 (zip)、随机选取 (random)
-- **异步并发**：基于 httpx + asyncio，可控并发度
-- **断点续跑**：自动跳过已成功的任务，支持中断后重跑
-- **结果持久化**：输出文件 + JSONL 结果日志
+## Features
 
-## 安装
+- **YAML Configuration Driven**: A single YAML file describes the entire test plan.
+- **Flexible Parameter Combinations**: Supports four parameter modes: fixed values, random selection, file system scanning (glob), and reading from file content.
+- **Three Combination Strategies**: Cartesian product (`product`), pairwise alignment (`zip`), and random selection (`random`).
+- **Asynchronous Concurrency**: Built with `httpx` + `asyncio` for controlled concurrency.
+- **Resume Functionality**: Automatically skips already completed tasks, allowing for easy retries after interruption.
+- **Result Persistence**: Outputs files and logs results in JSONL format.
+
+## Installation
 
 ```bash
-# 确保已安装 uv
+# Ensure uv is installed
 uv sync
 ```
 
-## 快速开始
+## Quick Start
 
-### 1. 准备配置文件
+### 1. Prepare Configuration File
 
-复制示例配置并修改：
+Copy the example configuration and modify it:
 
 ```bash
 cp configs/example.yaml configs/my_task.yaml
 ```
 
-### 2. 配置 API Key
+### 2. Configure API Key
 
-复制 `.env.example` 为 `.env` 并填入实际的 Key：
+Copy `.env.example` to `.env` and fill in your actual Keys:
 
 ```bash
 cp .env.example .env
-# 编辑 .env，填入你的 API Key 和 Base URL
+# Edit .env and fill in your API Key and Base URL
 ```
 
-`.env` 文件示例（支持配置多个 API 提供商）：
+Example `.env` file (supports multiple API providers):
 
 ```env
 # DeerAPI
 DEERAPI_KEY=sk-your-deerapi-key
 DEERAPI_BASE_URL=https://api.deerapi.com/v1
 
-# 火山引擎
+# Volcengine (Ark)
 VOLCENGINE_KEY=your-volcengine-key
 VOLCENGINE_BASE_URL=https://ark.cn-beijing.volces.com/api/v3
 ```
 
-在 YAML 配置中通过 `${变量名}` 引用：
+Reference them in your YAML config using `${VAR_NAME}`:
 
 ```yaml
 api:
@@ -57,70 +59,70 @@ api:
   api_key: "${DEERAPI_KEY}"
 ```
 
-> **注意**：`.env` 文件已被 `.gitignore` 忽略，不会提交到版本库。系统环境变量优先于 `.env` 文件。
+> **Note**: The `.env` file is ignored by `.gitignore` and will not be committed. System environment variables take precedence over the `.env` file.
 
-### 3. 预览任务
+### 3. Dry Run (Preview Tasks)
 
 ```bash
 uv run python main.py configs/my_task.yaml --dry
 ```
 
-### 4. 执行测试
+### 4. Execute Test
 
 ```bash
 uv run python main.py configs/my_task.yaml
 ```
 
-## 配置说明
+## Configuration Guide
 
-### 参数定义方式
+### Parameter Definition Modes
 
-| 方式 | 写法 | 说明 |
-|------|------|------|
-| 固定值 | `model: "gpt-4"` | 所有任务使用相同值 |
-| 随机选一 | `prompt: { pick: ["a", "b"] }` | 每个任务随机选一个 |
-| 文件扫描 | `image: { glob: "*.png", as: "base64" }` | 扫描文件并编码 |
-| 文件内容 | `prompt: { file: "p.txt", split: "line" }` | 读取文件按行切分 |
+| Mode | Syntax | Description |
+|------|--------|-------------|
+| Fixed Value | `model: "gpt-4"` | Same value used for all tasks |
+| Pick One | `prompt: { pick: ["a", "b"] }` | Randomly selects one for each task |
+| Glob Scan | `image: { glob: "*.png", as: "base64" }` | Scans files and encodes content |
+| File Content | `prompt: { file: "p.txt", split: "line" }` | Reads file and splits by line |
 
-### glob 的 `as` 选项
+### Glob `as` Options
 
-| 值 | 说明 |
-|----|------|
-| `base64` | 文件内容编码为 base64（默认） |
-| `path` | 文件绝对路径字符串 |
-| `filename` | 仅文件名 |
+| Value | Description |
+|-------|-------------|
+| `base64` | Encodes file content as base64 (default) |
+| `path` | Absolute path string of the file |
+| `filename` | Only the filename |
 
-### 组合策略
+### Combination Strategies
 
-| 策略 | 说明 | 示例 |
-|------|------|------|
-| `product` | 笛卡尔积 | 3 prompt × 5 image = 15 任务 |
-| `zip` | 一一对齐 | prompt[0]+image[0]... |
-| `random` | pick 随机选，其他做积 | 5 image × 随机 prompt |
+| Strategy | Description | Example |
+|----------|-------------|---------|
+| `product` | Cartesian Product | 3 prompts × 5 images = 15 tasks |
+| `zip` | Pairwise alignment | prompt[0]+image[0]... |
+| `random` | Randomly pick for `pick` mode, product for others | 5 images × random prompt |
 
-### 输出提取类型
+### Output Extraction Types
 
-| 类型 | 说明 |
-|------|------|
-| `base64_image` | base64 编码的图片 |
-| `base64_video` | base64 编码的视频 |
-| `url` | 通过 URL 下载资源 |
+| Type | Description |
+|------|-------------|
+| `base64_image` | Base64 encoded image |
+| `base64_video` | Base64 encoded video |
+| `url` | Download resource from URL |
 
-## 项目结构
+## Project Structure
 
 ```
 api-batch-tester/
-├── main.py                  # CLI 入口
-├── .env.example             # 环境变量模板（API Key 配置）
-├── configs/                 # 配置文件目录
-│   ├── example.yaml         # 完整示例
-│   └── example_random_prompt.yaml  # 随机提示词示例
+├── main.py                  # CLI Entry point
+├── .env.example             # Environment variable template
+├── configs/                 # Configuration directory
+│   ├── example.yaml         # Full example
+│   └── example_random_prompt.yaml  # Random prompt example
 ├── src/
-│   ├── config.py            # 配置加载与验证
-│   ├── runner.py            # 批量测试执行引擎
-│   ├── param_resolver.py    # 参数解析器
-│   ├── api_client.py        # 异步 HTTP 客户端
-│   ├── result_tracker.py    # 结果追踪（断点续跑）
-│   └── utils.py             # 工具函数
-└── external/                # 外部参考代码（不参与构建）
+│   ├── config.py            # Configuration loading and validation
+│   ├── runner.py            # Batch execution engine
+│   ├── param_resolver.py    # Parameter resolver
+│   ├── api_client.py        # Async HTTP client
+│   ├── result_tracker.py    # Result tracking (checkpoint/resume)
+│   └── utils.py             # Utility functions
+└── external/                # External reference code (not part of the build)
 ```

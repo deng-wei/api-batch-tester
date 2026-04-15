@@ -12,6 +12,7 @@ A CLI tool for batch testing Image/Video generation APIs. It supports flexible i
 - **Asynchronous Concurrency**: Built with `httpx` + `asyncio` for controlled concurrency.
 - **Resume Functionality**: Automatically skips already completed tasks, allowing for easy retries after interruption.
 - **Result Persistence**: Outputs files and logs results in JSONL format.
+- **Response Error Classification**: If the response body contains an `error` object, the task is recorded as `failed` (not `success`) to avoid incorrect resume skips.
 
 ## Installation
 

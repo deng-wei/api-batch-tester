@@ -30,6 +30,28 @@ from .utils import (
 logger = logging.getLogger(__name__)
 
 
+def _get_response_error_message(response: Any) -> str | None:
+    """
+    提取响应体中的业务错误信息。
+
+    规则：只要响应 JSON 中存在 error 字段，即判定为业务失败。
+    """
+    if not isinstance(response, dict) or "error" not in response:
+        return None
+
+    error = response.get("error")
+    if isinstance(error, dict):
+        message = error.get("message")
+        if isinstance(message, str) and message.strip():
+            return message.strip()
+        if message is not None:
+            return str(message)
+    try:
+        return json.dumps(error, ensure_ascii=False)
+    except TypeError:
+        return str(error)
+
+
 class BatchRunner:
     """
     批量测试执行器。
@@ -238,6 +260,11 @@ class BatchRunner:
                     encoding="utf-8",
                 )
                 output_files.append(str(resp_path))
+
+            # 响应体包含业务错误时，任务应判定为失败
+            response_error = _get_response_error_message(response)
+            if response_error is not None:
+                raise ValueError(f"Response body contains error: {response_error}")
 
             # 根据提取规则保存输出文件
             for i, rule in enumerate(self._config.output.extract):

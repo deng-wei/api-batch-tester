@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 # 辅助函数
 # ============================================================
 
+
 def _load_env_file(config_path: Path) -> None:
     """
     加载 .env 文件中的环境变量。
@@ -62,12 +63,14 @@ def _load_env_file(config_path: Path) -> None:
 
 def _resolve_env_vars(text: str) -> str:
     """解析字符串中的 ${ENV_VAR} 引用，替换为环境变量值。"""
+
     def _replacer(match: re.Match) -> str:
         var_name = match.group(1)
         value = os.environ.get(var_name)
         if value is None:
             raise ValueError(f"Environment variable '{var_name}' not set")
         return value
+
     return re.sub(r"\$\{(\w+)}", _replacer, text)
 
 
@@ -75,15 +78,17 @@ def _resolve_env_vars(text: str) -> str:
 # 配置数据模型
 # ============================================================
 
+
 class APIConfig(BaseModel):
     """API 连接配置。"""
-    base_url: str                                       # API 端点地址
-    api_key: str = ""                                   # API Key，支持 ${ENV} 引用
-    method: Literal["POST", "GET"] = "POST"             # HTTP 方法
-    timeout: int = 300                                  # 单次请求超时（秒）
-    max_retries: int = 3                                # 最大重试次数
-    retry_backoff: float = 1.0                          # 退避因子
-    concurrency: int = 5                                # 最大并发数
+
+    base_url: str  # API 端点地址
+    api_key: str = ""  # API Key，支持 ${ENV} 引用
+    method: Literal["POST", "GET"] = "POST"  # HTTP 方法
+    timeout: int = 300  # 单次请求超时（秒）
+    max_retries: int = 3  # 最大重试次数
+    retry_backoff: float = 1.0  # 退避因子
+    concurrency: int = 5  # 最大并发数
     headers: dict[str, str] = Field(default_factory=dict)  # 额外请求头
 
     def resolve(self) -> "APIConfig":
@@ -105,14 +110,19 @@ class ParamValue(BaseModel):
     - 文件扫描:  glob: "inputs/*.png", as: "base64" | "path" | "filename"
     - 文件内容:  file: "prompts.txt", split: "line" | 指定分隔符
     """
+
     # 互斥字段 — 四种模式只能指定一种
-    value: Any | None = None                # 固定值
-    pick: list[Any] | None = None           # 随机选一
-    glob: str | None = None                 # 文件扫描 glob 模式
-    file: str | None = None                 # 读取文件内容
+    value: Any | None = None  # 固定值
+    pick: list[Any] | None = None  # 随机选一
+    glob: str | None = None  # 文件扫描 glob 模式
+    file: str | None = None  # 读取文件内容
 
     # glob 模式的附加选项
     as_format: Literal["base64", "path", "filename"] = "base64"
+    # 当 as_format=base64 且文件为图片时生效
+    image_encode: Literal["none", "smart_jpeg"] = "none"
+    # smart_jpeg 的 JPEG 质量
+    jpeg_quality: int = Field(default=95, ge=1, le=95)
     # file 模式的切分方式
     split: str = "line"
 
@@ -146,25 +156,28 @@ class ParamValue(BaseModel):
 
 class OutputExtractRule(BaseModel):
     """从 API 响应中提取输出文件的规则。"""
-    field: str                              # JSON 字段路径，如 "data[0].b64_json"
+
+    field: str  # JSON 字段路径，如 "data[0].b64_json"
     type: Literal["base64_image", "base64_video", "url"]  # 数据类型
-    suffix: str = ".png"                    # 保存文件的后缀名 (仅在 filename 未指定时使用)
-    filename: str | None = None             # 自定义文件名模板，支持 {param_name} 占位符
+    suffix: str = ".png"  # 保存文件的后缀名 (仅在 filename 未指定时使用)
+    filename: str | None = None  # 自定义文件名模板，支持 {param_name} 占位符
 
 
 class OutputConfig(BaseModel):
     """输出配置。"""
-    dir: str = "outputs/{timestamp}"        # 输出目录模板
-    save_response: bool = True              # 是否保存完整响应 JSON
+
+    dir: str = "outputs/{timestamp}"  # 输出目录模板
+    save_response: bool = True  # 是否保存完整响应 JSON
     extract: list[OutputExtractRule] = Field(default_factory=list)
 
 
 class TaskConfig(BaseModel):
     """顶层配置对象，对应一个完整的 YAML 配置文件。"""
+
     api: APIConfig
-    params: dict[str, ParamValue]           # 请求参数定义
+    params: dict[str, ParamValue]  # 请求参数定义
     combination: Literal["product", "zip", "random"] = "product"
-    repeat: int = 1                         # 同一组参数重复执行次数
+    repeat: int = 1  # 同一组参数重复执行次数
     output: OutputConfig = Field(default_factory=OutputConfig)
     result_log: str = "outputs/{timestamp}/results.jsonl"
 
@@ -186,6 +199,7 @@ class TaskConfig(BaseModel):
 # ============================================================
 # 配置加载入口
 # ============================================================
+
 
 def load_config(config_path: str | Path) -> TaskConfig:
     """

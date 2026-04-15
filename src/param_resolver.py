@@ -16,13 +16,12 @@ from typing import Any
 from .config import ParamValue
 from .utils import image_to_base64, video_to_base64
 
-
 # ============================================================
 # 文件类型判断
 # ============================================================
 
 # 支持的图片和视频后缀
-_IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".tiff"}
+_IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".tiff", ".jfif"}
 _VIDEO_SUFFIXES = {".mp4", ".webm", ".avi", ".mov", ".mkv"}
 
 
@@ -39,6 +38,7 @@ def _is_video(path: Path) -> bool:
 # ============================================================
 # 单参数值解析
 # ============================================================
+
 
 def resolve_param_value(
     param: ParamValue,
@@ -75,21 +75,27 @@ def resolve_param_value(
         for p in matched:
             # 基础元数据：文件名（不含后缀）
             meta = {"filename": p.stem}
-            
+
             val: Any = None
             if param.as_format == "base64":
                 if _is_image(p):
-                    val = image_to_base64(p, with_prefix=True)
+                    val = image_to_base64(
+                        p,
+                        with_prefix=True,
+                        image_encode=param.image_encode,
+                        jpeg_quality=param.jpeg_quality,
+                    )
                 elif _is_video(p):
                     val = video_to_base64(p, with_prefix=True)
                 else:
                     import base64 as b64mod
+
                     val = b64mod.b64encode(p.read_bytes()).decode("utf-8")
             elif param.as_format == "path":
                 val = str(p.resolve())
             elif param.as_format == "filename":
                 val = p.name
-            
+
             results.append((val, meta))
         return results
 
@@ -117,6 +123,7 @@ def resolve_param_value(
 # ============================================================
 # 任务列表构建
 # ============================================================
+
 
 def build_task_list(
     params: dict[str, ParamValue],
@@ -197,11 +204,19 @@ def build_task_list(
             tasks.append(_create_task(tuple([idx] * len(variable_names))))
 
     elif combination == "random":
-        pick_indices = [i for i, name in enumerate(variable_names) if params[name].pick is not None]
-        non_pick_indices = [i for i, name in enumerate(variable_names) if params[name].pick is None]
+        pick_indices = [
+            i for i, name in enumerate(variable_names) if params[name].pick is not None
+        ]
+        non_pick_indices = [
+            i for i, name in enumerate(variable_names) if params[name].pick is None
+        ]
 
         if not non_pick_indices:
-            tasks.append(_create_task(tuple(random.randrange(len(vals)) for vals in variable_values)))
+            tasks.append(
+                _create_task(
+                    tuple(random.randrange(len(vals)) for vals in variable_values)
+                )
+            )
         else:
             ranges = [range(len(variable_values[i])) for i in non_pick_indices]
             for non_pick_combo in itertools.product(*ranges):

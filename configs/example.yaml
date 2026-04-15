@@ -57,6 +57,8 @@ params:
   image:
     glob: "inputs/images/*.png"
     as: "base64"
+    image_encode: "none"     # 可选: none / smart_jpeg
+    jpeg_quality: 85         # smart_jpeg 生效时使用，范围 1-95
 
 # --- 参数组合策略 ---
 # product:  笛卡尔积 — 每个 prompt × 每张 image（全组合）

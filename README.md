@@ -93,6 +93,25 @@ uv run python main.py configs/my_task.yaml
 | `path` | Absolute path string of the file |
 | `filename` | Only the filename |
 
+### Image Base64 Encoding Options (for `glob` + `as: base64`)
+
+| Field | Value | Description |
+|-------|-------|-------------|
+| `image_encode` | `none` | Keep original file bytes (default) |
+| `image_encode` | `smart_jpeg` | Convert static non-transparent images to JPEG when smaller |
+| `jpeg_quality` | `1-95` | JPEG quality for `smart_jpeg` (default: `95`) |
+
+Example:
+
+```yaml
+params:
+  image:
+    glob: "inputs/images/*"
+    as: "base64"
+    image_encode: "smart_jpeg"
+    jpeg_quality: 95
+```
+
 ### Combination Strategies
 
 | Strategy | Description | Example |

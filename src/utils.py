@@ -8,43 +8,97 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import io
+import logging
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import httpx
+
+logger = logging.getLogger(__name__)
 
 
 # ============================================================
 # Base64 编解码
 # ============================================================
 
-def image_to_base64(path: str | Path, *, with_prefix: bool = True) -> str:
+_IMAGE_MIME_MAP = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".jfif": "image/jpeg",
+    ".webp": "image/webp",
+    ".gif": "image/gif",
+    ".bmp": "image/bmp",
+    ".tif": "image/tiff",
+    ".tiff": "image/tiff",
+}
+
+
+def _guess_image_mime(path: Path) -> str:
+    return _IMAGE_MIME_MAP.get(path.suffix.lower(), "image/png")
+
+
+def _has_alpha_channel(img: Any) -> bool:
+    if "A" in img.getbands():
+        return True
+    if img.mode == "P" and img.info.get("transparency") is not None:
+        return True
+    return False
+
+
+def image_to_base64(
+    path: str | Path,
+    *,
+    with_prefix: bool = True,
+    image_encode: Literal["none", "smart_jpeg"] = "none",
+    jpeg_quality: int = 95,
+) -> str:
     """
     将图片文件编码为 base64 字符串。
 
     Args:
         path: 图片文件路径
         with_prefix: 是否添加 data URI 前缀
+        image_encode: 图片编码策略，none/smart_jpeg
+        jpeg_quality: smart_jpeg 时的 JPEG 质量，范围 1-95
 
     Returns:
         base64 编码字符串
     """
     path = Path(path)
     raw = path.read_bytes()
-    b64 = base64.b64encode(raw).decode("utf-8")
+    mime = _guess_image_mime(path)
+    encoded_raw = raw
+
+    if image_encode == "smart_jpeg":
+        try:
+            from PIL import Image
+
+            with Image.open(path) as img:
+                is_animated = bool(getattr(img, "is_animated", False)) or (
+                    int(getattr(img, "n_frames", 1)) > 1
+                )
+                has_alpha = _has_alpha_channel(img)
+                if not is_animated and not has_alpha:
+                    rgb = img.convert("RGB")
+                    buf = io.BytesIO()
+                    rgb.save(buf, format="JPEG", quality=jpeg_quality, optimize=True)
+                    jpeg_raw = buf.getvalue()
+                    if len(jpeg_raw) < len(raw):
+                        encoded_raw = jpeg_raw
+                        mime = "image/jpeg"
+        except Exception as exc:
+            logger.warning(
+                "Smart JPEG fallback to original bytes for '%s': %s",
+                path,
+                exc,
+            )
+
+    b64 = base64.b64encode(encoded_raw).decode("utf-8")
     if with_prefix:
-        # 根据后缀推断 MIME 类型
-        suffix_map = {
-            ".png": "image/png",
-            ".jpg": "image/jpeg",
-            ".jpeg": "image/jpeg",
-            ".webp": "image/webp",
-            ".gif": "image/gif",
-            ".bmp": "image/bmp",
-        }
-        mime = suffix_map.get(path.suffix.lower(), "image/png")
         return f"data:{mime};base64,{b64}"
     return b64
 
@@ -97,7 +151,9 @@ def save_base64_file(b64_str: str, path: str | Path) -> Path:
     return path
 
 
-async def download_url(url: str, path: str | Path, *, client: httpx.AsyncClient | None = None) -> Path:
+async def download_url(
+    url: str, path: str | Path, *, client: httpx.AsyncClient | None = None
+) -> Path:
     """
     异步下载 URL 资源到本地文件。
 
@@ -130,6 +186,7 @@ async def download_url(url: str, path: str | Path, *, client: httpx.AsyncClient 
 # ============================================================
 # JSON 字段提取
 # ============================================================
+
 
 def extract_field(data: Any, field_path: str) -> Any:
     """
@@ -172,6 +229,7 @@ def extract_field(data: Any, field_path: str) -> Any:
 # 通用辅助
 # ============================================================
 
+
 def generate_task_id(params: dict[str, Any]) -> str:
     """
     根据请求参数生成稳定的任务 ID。
@@ -185,6 +243,7 @@ def generate_task_id(params: dict[str, Any]) -> str:
     Returns:
         16 位十六进制任务 ID
     """
+
     # 将参数序列化为稳定的字符串表示
     # 对于 base64 内容，只取前 64 字符避免哈希过慢
     def _truncate(v: Any) -> Any:

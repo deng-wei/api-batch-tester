@@ -93,6 +93,25 @@ uv run python main.py configs/my_task.yaml
 | `path` | 文件绝对路径字符串 |
 | `filename` | 仅文件名 |
 
+### 图片 base64 编码选项（仅 `glob` + `as: base64`）
+
+| 字段 | 值 | 说明 |
+|------|----|------|
+| `image_encode` | `none` | 保持原始文件字节（默认） |
+| `image_encode` | `smart_jpeg` | 对静态且无透明通道图片尝试转 JPEG（仅在体积更小时生效） |
+| `jpeg_quality` | `1-95` | `smart_jpeg` 的 JPEG 质量（默认：`95`） |
+
+示例：
+
+```yaml
+params:
+  image:
+    glob: "inputs/images/*"
+    as: "base64"
+    image_encode: "smart_jpeg"
+    jpeg_quality: 95
+```
+
 ### 组合策略
 
 | 策略 | 说明 | 示例 |

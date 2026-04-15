@@ -28,6 +28,7 @@ params:
     as: "base64"
     image_encode: "smart_jpeg"
     jpeg_quality: 85
+    max_size: 4096
 
 # 关键：使用 random 策略
 # pick 类型参数（prompt）每次随机选一个，

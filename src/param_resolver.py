@@ -84,6 +84,7 @@ def resolve_param_value(
                         with_prefix=True,
                         image_encode=param.image_encode,
                         jpeg_quality=param.jpeg_quality,
+                        max_size=param.max_size,
                     )
                 elif _is_video(p):
                     val = video_to_base64(p, with_prefix=True)

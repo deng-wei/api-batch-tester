@@ -123,6 +123,8 @@ class ParamValue(BaseModel):
     image_encode: Literal["none", "smart_jpeg"] = "none"
     # smart_jpeg 的 JPEG 质量
     jpeg_quality: int = Field(default=95, ge=1, le=95)
+    # 限制图片最大尺寸，进行等比例缩放
+    max_size: int | None = None
     # file 模式的切分方式
     split: str = "line"
 

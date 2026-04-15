@@ -55,6 +55,7 @@ def image_to_base64(
     with_prefix: bool = True,
     image_encode: Literal["none", "smart_jpeg"] = "none",
     jpeg_quality: int = 95,
+    max_size: int | None = None,
 ) -> str:
     """
     将图片文件编码为 base64 字符串。
@@ -73,26 +74,52 @@ def image_to_base64(
     mime = _guess_image_mime(path)
     encoded_raw = raw
 
-    if image_encode == "smart_jpeg":
+    if max_size is not None or image_encode == "smart_jpeg":
         try:
             from PIL import Image
 
             with Image.open(path) as img:
+                original_format = img.format
                 is_animated = bool(getattr(img, "is_animated", False)) or (
                     int(getattr(img, "n_frames", 1)) > 1
                 )
+
+                needs_resize = False
+                if max_size is not None and not is_animated:
+                    w, h = img.size
+                    if max(w, h) > max_size:
+                        ratio = max_size / float(max(w, h))
+                        new_w, new_h = int(w * ratio), int(h * ratio)
+                        img = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
+                        needs_resize = True
+
                 has_alpha = _has_alpha_channel(img)
-                if not is_animated and not has_alpha:
+                
+                if image_encode == "smart_jpeg" and not is_animated and not has_alpha:
                     rgb = img.convert("RGB")
                     buf = io.BytesIO()
                     rgb.save(buf, format="JPEG", quality=jpeg_quality, optimize=True)
                     jpeg_raw = buf.getvalue()
-                    if len(jpeg_raw) < len(raw):
+                    if needs_resize or len(jpeg_raw) < len(raw):
                         encoded_raw = jpeg_raw
                         mime = "image/jpeg"
+                elif needs_resize:
+                    buf = io.BytesIO()
+                    save_format = original_format if original_format else "PNG"
+                    try:
+                        kwargs = {}
+                        if save_format in ["JPEG", "JPG", "WEBP"]:
+                            kwargs["quality"] = jpeg_quality
+                        img.save(buf, format=save_format, **kwargs)
+                        encoded_raw = buf.getvalue()
+                    except Exception:
+                        buf = io.BytesIO()
+                        img.save(buf, format="PNG")
+                        encoded_raw = buf.getvalue()
+                        mime = "image/png"
         except Exception as exc:
             logger.warning(
-                "Smart JPEG fallback to original bytes for '%s': %s",
+                "Image processing fallback to original bytes for '%s': %s",
                 path,
                 exc,
             )
